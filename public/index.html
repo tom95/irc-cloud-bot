@@ -47,11 +47,13 @@
 						<form class="navbar-form navbar-left">
 							<div class="input-group">
 								<input ng-model="newChannel"
+			   							ng-disabled="!currentServer"
 										type="text"
 										class="form-control"
 										placeholder="Join channel ...">
 								<span class="input-group-btn">
-									<button ng-click="joinChannel(newChannel); newChannel = ''"
+									<button ng-disabled="!currentServer"
+											 ng-click="joinChannel(newChannel); newChannel = ''"
 											class="btn btn-default">
 										<span class="glyphicon glyphicon-plus"></span>
 									</button>
@@ -84,7 +86,7 @@
 
 					<ul class="list-group">
 						<li ng-repeat="(channelName, channel) in server.channels"
-		  					ng-click="selectChannel(channel)"
+		  					ng-click="selectChannel(serverName, channel)"
 		 					ng-class="{ active: currentChannel == channel }"
 							class="list-group-item">
 							<span class="badge">{{ channel.unreadCount }}</span> {{ channelName }}
@@ -140,8 +142,9 @@
 
 				$scope.colors = {};
 
-				$scope.selectChannel = function(channel) {
+				$scope.selectChannel = function(server, channel) {
 					$scope.currentChannel = channel;
+					$scope.currentServer = server;
 
 					$timeout(function() {
 						$messages = $('#messages');
@@ -159,12 +162,14 @@
 				};
 
 				$scope.joinChannel = function(channel) {
-					socket.emit('join-channel', channel);
+					socket.emit('join-channel', {
+						server: $scope.currentServer,
+						channel: channel
+					});
 				};
 
 				$scope.sendMessage = function() {
-					var server = Object.keys($scope.state.servers)[0];
-					var channels = $scope.state.servers[server].channels;
+					var channels = $scope.state.servers[$scope.currentServer].channels;
 
 					for (var channel in channels) {
 						if (channels[channel] == $scope.currentChannel)
@@ -178,6 +183,7 @@
 					});
 
 					socket.emit('send-message', {
+						server: $scope.currentServer,
 						channel: channel,
 						message: $scope.newMessage
 					});
@@ -189,7 +195,7 @@
 
 				$scope.resize = function() {
 					$messages = $('#messages');
-					$messages.height($(document.body).height() - $('#input').outerHeight() - $messages.offset().top);
+					$messages.height($(document.body).height() - $('#input').outerHeight(true) - $messages.offset().top);
 				};
 
 				$scope.resize();
@@ -215,7 +221,7 @@
 							var channels = $scope.state.servers[servers[0]].channels;
 							var keys = Object.keys(channels);
 							if (keys.length)
-								$scope.selectChannel(channels[keys[0]]);
+								$scope.selectChannel(servers[0], channels[keys[0]]);
 						}
 					});
 				});
