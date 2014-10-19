@@ -1,5 +1,5 @@
 
-var socket = io.connect('http://cloud.tombeckmann.de');
+var socket = io.connect(location.host);
 
 var colors = ['#0099cc', '#9933cc', '#669900', '#ff8800', '#cc0000'];
 var colorsIndex = 0;
