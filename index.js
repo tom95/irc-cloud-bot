@@ -1,4 +1,5 @@
 var irc = require('irc');
+var fs = require('fs');
 var express = require('express');
 var http = require('http');
 var socketIo = require('socket.io');
@@ -6,6 +7,9 @@ var socketIo = require('socket.io');
 var app = express();
 var server = http.Server(app);
 var io = socketIo(server);
+
+var logDir = __dirname + '/logs';
+var pageSize = 10;
 
 var state = {
 	servers: {
@@ -22,6 +26,7 @@ var state = {
 	nick: 'me'
 };
 
+var diskCache = {};
 var clients = {};
 
 io.on('connection', function(socket) {
@@ -66,8 +71,24 @@ function sendMessage(info) {
 
 	var client = clients[info.server];
 
-	state.servers[info.server].channels[info.channel].messages.push(msgObj);
+	storeMessage(info.server, info.channel, msgObj);
+
 	client.say(info.channel, info.message);
+}
+
+function storeMessage(server, channel, msgObj) {
+	var key = server + '@' + channel;
+
+	var inMemoryList = state.servers[server].channels[channel].messages;
+
+	if (inMemoryList.length >= pageSize) {
+		if (!diskCache[key])
+			diskCache[key] = [];
+
+		diskCache[key].push(inMemoryList.shift());
+	}
+
+	inMemoryList.push(msgObj);
 }
 
 function connectServer(host, readyCb) {
@@ -107,7 +128,7 @@ function connectServer(host, readyCb) {
 		};
 
 		channel.unreadCount++;
-		channel.messages.push(msgObj);
+		storeMessage(host, channel, msgObj);
 
 		io.emit('data-update', [
 			{
@@ -158,8 +179,11 @@ servers.forEach(function(server) {
 
 app.use(express.static(__dirname + '/public'));
 
+if (!fs.existsSync(logDir))
+	fs.mkdirSync(logDir);
+
 var port = process.env.PORT || 8000;
 server.listen(port, function() {
-	console.log('HTTP Server started on port', port)
+	console.log('HTTP Server started on port', port);
 });
 
