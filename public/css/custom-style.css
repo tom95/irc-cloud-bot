@@ -1,0 +1,17 @@
+
+body, html {
+	height: 100%;
+}
+
+#messages {
+	overflow: auto;
+}
+
+.message, #user-list {
+	font-family: monospace;
+}
+
+.message .sender {
+	color: #ff8800;
+}
+
