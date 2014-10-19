@@ -19,8 +19,10 @@ var state = {
 			}
 		}
 	},
-	nick: 'tom95_2'
+	nick: 'me'
 };
+
+var clients = {};
 
 io.on('connection', function(socket) {
 	socket.emit('init', {
@@ -32,7 +34,7 @@ io.on('connection', function(socket) {
 });
 
 function joinChannel(info) {
-	var client = state.servers[info.server].client;
+	var client = clients[info.server];
 
 	client.join(info.channel, function() {
 		var server = client.opt.server;
@@ -61,7 +63,7 @@ function sendMessage(info) {
 		read: true
 	};
 
-	var client = state.servers[info.server].client;
+	var client = clients[info.server];
 
 	state.servers[info.server].channels[info.channel].messages.push(msgObj);
 	client.say(info.channel, info.message);
@@ -75,11 +77,10 @@ function connectServer(host) {
 
 	if (!state.servers[host])
 		state.servers[host] = {
-			client: client,
 			channels: []
 		};
-	else
-		state.servers[host].client = client;
+
+	clients[host] = client;
 
 	client.addListener('message', function(nick, to, text, message) {
 		var channel = state.servers[host].channels[to];
