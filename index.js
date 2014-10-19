@@ -68,8 +68,10 @@ function sendMessage(info) {
 
 app.use(express.static(__dirname + '/public'));
 
-var client = new irc.Client('pa.dnsdynamic.net', 'tom95_2', {
-	channels: ['#testing-stuff']
+var client = new irc.Client('pa.dnsdynamic.net', state.nick, {
+	channels: ['#testing-stuff'],
+	realName: state.nick,
+	userName: state.nick
 });
 
 client.addListener('message', function(nick, to, text, message) {
