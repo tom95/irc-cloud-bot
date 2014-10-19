@@ -2,7 +2,7 @@
 
 <html ng-app="irc">
 	<head>
-		<title>HPI Push Notifications</title>
+		<title>IRC Bot</title>
 		<meta charset="utf-8">
 		<link href="/css/bootstrap.min.css" rel="stylesheet">
 		<!--<link href="/css/bootstrap-theme.min.css" rel="stylesheet">-->
@@ -31,14 +31,14 @@
 
 						<form class="navbar-form navbar-left">
 							<div class="input-group">
-								<input ng-bind="newServer"
+								<input ng-model="newServer"
 										type="text"
 										class="form-control"
 										placeholder="Connect to Server ...">
 								<span class="input-group-btn">
-									<button ng-click="connectServer(newServer)"
-											class="btn btn-default">
-										<span class="glyphicon glyphicon-cloud"></span>
+									<button ng-click="connectServer(newServer); newServer = ''"
+										 class="btn btn-default">
+										<span class="glyphicon glyphicon-plus"></span>
 									</button>
 								</span>
 							</div>
@@ -51,10 +51,18 @@
 										class="form-control"
 										placeholder="Join channel ...">
 								<span class="input-group-btn">
-									<button ng-click="joinChannel(newChannel); newChannel = ''"
-											class="btn btn-default">
-										<span class="glyphicon glyphicon-plus"></span>
+									<button data-toggle="dropdown" type="button"
+										 class="btn btn-default dropdown-toggle">
+										<span class="glyphicon glyphicon-cloud"></span>
+										<span class="caret"></span>
 									</button>
+									<ul class="dropdown-menu">
+										<li><a ng-repeat="(server,data) in state.servers"
+				 								href=""
+												ng-click="joinChannel(server, newChannel); newChannel = ''">
+											{{ server }}
+										</a></li>
+									</ul>
 								</span>
 							</div>
 						</form>
@@ -84,7 +92,7 @@
 
 					<ul class="list-group">
 						<li ng-repeat="(channelName, channel) in server.channels"
-		  					ng-click="selectChannel(channel)"
+		  					ng-click="selectChannel(serverName, channel)"
 		 					ng-class="{ active: currentChannel == channel }"
 							class="list-group-item">
 							<span class="badge">{{ channel.unreadCount }}</span> {{ channelName }}
@@ -102,7 +110,7 @@
 					</div>
 				</div>
 
-				<div class="input-group">
+				<div class="input-group" ng-show="!!currentChannel">
 					<input class="form-control"
 							id="input"
 	   						ng-enter="sendMessage()"
@@ -128,140 +136,5 @@
 	<script src="http://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
 	<script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.3.0/angular.min.js"></script>
 	<script src="/js/bootstrap.min.js"></script>
-	<script>
-
-		var socket = io.connect('http://cloud.tombeckmann.de');
-
-		var colors = ['#0099cc', '#9933cc', '#669900', '#ff8800', '#cc0000'];
-		var colorsIndex = 0;
-
-		angular.module('irc', [])
-			.controller('PostsController', function($scope, $timeout) {
-
-				$scope.colors = {};
-
-				$scope.selectChannel = function(channel) {
-					$scope.currentChannel = channel;
-
-					$timeout(function() {
-						$messages = $('#messages');
-						$messages.scrollTop($messages[0].scrollHeight);
-
-						$('#input').focus();
-					});
-				};
-
-				$scope.getColorForSender = function(sender) {
-					if (!$scope.colors[sender])
-						$scope.colors[sender] = colors[colorsIndex++ % colors.length];
-
-					return $scope.colors[sender];
-				};
-
-				$scope.joinChannel = function(channel) {
-					socket.emit('join-channel', channel);
-				};
-
-				$scope.sendMessage = function() {
-					var server = Object.keys($scope.state.servers)[0];
-					var channels = $scope.state.servers[server].channels;
-
-					for (var channel in channels) {
-						if (channels[channel] == $scope.currentChannel)
-						   break;
-					}
-
-					$scope.currentChannel.messages.push({
-						sender: $scope.state.nick,
-						text: $scope.newMessage,
-						read: true
-					});
-
-					socket.emit('send-message', {
-						channel: channel,
-						message: $scope.newMessage
-					});
-
-					$scope.newMessage = '';
-
-					$('#input').focus();
-				};
-
-				$scope.resize = function() {
-					$messages = $('#messages');
-					$messages.height($(document.body).height() - $('#input').outerHeight() - $messages.offset().top);
-				};
-
-				$scope.resize();
-				window.onresize = $scope.resize;
-
-				$scope.$watch('currentChannel.messages', function() {
-					$scope.$evalAsync(function() {
-						$messages = $('#messages');
-						var currentY = $messages.scrollTop() + $messages.height();
-						var height = $messages[0].scrollHeight;
-
-						if (height - currentY < 100)
-							$messages.scrollTop(height + 9999);
-					});
-				}, true);
-
-				socket.on('init', function(initdata) {
-					$scope.$apply(function() {
-						$scope.state = initdata.state;
-
-						var servers = Object.keys($scope.state.servers);
-						if (servers.length) {
-							var channels = $scope.state.servers[servers[0]].channels;
-							var keys = Object.keys(channels);
-							if (keys.length)
-								$scope.selectChannel(channels[keys[0]]);
-						}
-					});
-				});
-
-				socket.on('data-update', function(updates) {
-					$scope.$apply(function() {
-						updates.forEach(function(update) {
-							var path = update.path.split('|');
-							var currentElement = $scope.state;
-							var key = path[path.length - 1];
-
-							for (var i = 0; i < path.length - 1; i++) {
-								currentElement = currentElement[path[i]];
-							}
-
-							switch (update.op) {
-								case 'set':
-									currentElement[key] = update.val;
-									break;
-								case 'unset':
-									delete currentElement[key];
-									break;
-								case 'add':
-									currentElement[key].push(update.val);
-									break;
-								case 'remove':
-									currentElement[key].splice(currentElement[key].indexOf(update.val), 1);
-									break;
-							}
-						});
-					});
-				});
-			})
-			.directive('ngEnter', function () {
-				return function (scope, element, attrs) {
-					element.bind("keydown keypress", function (e) {
-						if (e.which === 13) {
-							scope.$apply(function (){
-								scope.$eval(attrs.ngEnter);
-							});
-
-							e.preventDefault();
-						}
-					});
-				};
-			});
-
-	</script>
+	<script src="/js/app.js"></script>
 </html>
