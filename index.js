@@ -29,6 +29,7 @@ io.on('connection', function(socket) {
 		state: state
 	});
 
+	socket.on('connect-server', connectServer);
 	socket.on('join-channel', joinChannel);
 	socket.on('send-message', sendMessage);
 });
@@ -44,11 +45,11 @@ function joinChannel(info) {
 			unreadCount: 0
 		};
 
-		state.servers[server].channels[channel] = channelObj;
+		state.servers[info.server].channels[info.channel] = channelObj;
 
 		io.emit('data-update', [
 			{
-				path: 'servers|' + server + '|channels|' + channel,
+				path: 'servers|' + info.server + '|channels|' + info.channel,
 				op: 'set',
 				val: channelObj
 			}
@@ -69,16 +70,31 @@ function sendMessage(info) {
 	client.say(info.channel, info.message);
 }
 
-function connectServer(host) {
+function connectServer(host, readyCb) {
 	var client = new irc.Client(host, state.nick, {
+		userName: state.nick,
 		realName: state.nick,
-		userName: state.nick
+		autoConnect: false
 	});
 
-	if (!state.servers[host])
+	client.connect(3, function() {
+		if (readyCb)
+			readyCb(host, client);
+	});
+
+	if (!state.servers[host]) {
 		state.servers[host] = {
 			channels: []
 		};
+
+		io.emit('data-update', [
+			{
+				path: 'servers|' + host,
+				op: 'set',
+				val: state.servers[host]
+			}
+		]);
+	}
 
 	clients[host] = client;
 
@@ -108,7 +124,7 @@ function connectServer(host) {
 	});
 
 	client.addListener('names', function(channel, nicks) {
-		var channel = state.servers[server].channels[channel];
+		var channel = state.servers[host].channels[channel];
 
 		channel.users = Object.keys(nicks).map(function(nick) { return nicks[nick] + nick; });
 
@@ -127,15 +143,15 @@ function connectServer(host) {
 }
 
 // init given state
-var servers = Object.keys(state.servers).slice();
+var servers = Object.keys(state.servers);
 servers.forEach(function(server) {
-	connectServer(server);
-
-	var channels = Object.keys(state.servers[server].channels).slice();
-	channels.forEach(function(channel) {
-		joinChannel({
-			server: server,
-			channel: channel
+	connectServer(server, function(server, client) {
+		var channels = Object.keys(state.servers[server].channels);
+		channels.forEach(function(channel) {
+			joinChannel({
+				server: server,
+				channel: channel
+			});
 		});
 	});
 });
