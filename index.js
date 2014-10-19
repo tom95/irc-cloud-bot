@@ -182,6 +182,13 @@ app.use(express.static(__dirname + '/public'));
 if (!fs.existsSync(logDir))
 	fs.mkdirSync(logDir);
 
+setTimeout(5 * 60 * 1000, function() {
+	for (var file in diskCache) {
+		diskCache[file].splice(0).reduce(function() {
+		});
+	}
+});
+
 var port = process.env.PORT || 8000;
 server.listen(port, function() {
 	console.log('HTTP Server started on port', port);
